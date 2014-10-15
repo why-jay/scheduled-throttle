@@ -2,13 +2,13 @@
 
 Function will only execute once until it passes a certain time of day (backed by Redis).
 
-#Install
+##Install
 
 ```
 npm install scheduled-throttle
 ```
 
-#Example
+##Example
 
 ```JavaScript
 var ScheduledThrottle = require('scheduled-throttle');
@@ -51,7 +51,7 @@ throttler.clear(function (err, result) { // "clear" method
 
 ```
 
-#Pretending a Time of Day
+##Pretending a Time of Day
 
 For testing purposes, you may want to pretend it's a certain time of day right now. In such cases, simply pass a `Date`
 object as the second argument of the `.throttle` method:
@@ -68,7 +68,7 @@ var simulatedThrottledFn = throttler.throttle(function () {
 }, new Date('2013-03-01T04:01:00+0900'));
 ```
 
-#Test
+##Test
 
 Test is written in ES6, so Regenerator, 6to5 and Bash are being used for transpilation.
 
