@@ -58,7 +58,7 @@ object as the second argument of the `.throttle` method:
 
 ```JavaScript
 var throttler = ScheduledThrottle.create({
-    [other options],
+    (other options...),
     timezone: '+0900',
     localChangeTimes: ['0400']
 }));
