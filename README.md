@@ -27,6 +27,7 @@ var obj = {
     a: 2,
     throttledFn: throttler.throttle(function (x) {
         console.log('executed');
+        return x + this.a;
     });
 };
 
@@ -36,7 +37,7 @@ throttler.clear(function (err, result) { // "clear" method
     obj.throttledFn(1, function (err, result) {
         if (err) throw err;
         
-        // 'executed'
+        // prints 'executed'
         assert.strictEqual(result, 1 + 2);
     
         obj.throttledFn(1, function (err, result) {
