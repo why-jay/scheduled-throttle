@@ -15,7 +15,7 @@ var ScheduledThrottle = require('scheduled-throttle');
 
 var throttler = ScheduledThrottle.create({
     client: redisClient,
-    key: 'foo:1', // redisKey
+    key: 'foo:1', // redis key name
     timezone: '+0900',
     localChangeTimes: [
         '0400',
