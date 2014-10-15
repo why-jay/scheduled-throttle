@@ -1,0 +1,28 @@
+{
+  "name": "scheduled-throttle",
+  "version": "0.1.0",
+  "description": "Function will only execute once until it passes a certain time of day (backed by Redis).",
+  "main": "main.js",
+  "devDependencies": {
+    "bluebird": "2.3.5",
+    "lodash": "2.4.1",
+    "redis": "^0.12.1"
+  },
+  "scripts": {
+    "test": "./runTest.sh"
+  },
+  "author": "YJ Yang <chcokr@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chcokr/scheduled-throttle.git"
+  },
+  "keywords": [
+    "throttle",
+    "scheduled"
+  ],
+  "bugs": {
+    "url": "https://github.com/chcokr/scheduled-throttle/issues"
+  },
+  "homepage": "https://github.com/chcokr/scheduled-throttle"
+}
