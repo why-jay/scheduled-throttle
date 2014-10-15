@@ -1,6 +1,8 @@
 #Scheduled Throttle
 
-Function will only execute once until it passes a certain time of day (backed by Redis).
+A throttled function will only execute once until it passes a certain time of day (backed by Redis).
+
+The only overhead on the function after throttling is a single I/O call to and from Redis.
 
 ##Install
 
