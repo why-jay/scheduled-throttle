@@ -1,6 +1,6 @@
 {
   "name": "scheduled-throttle",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Function will only execute once until it passes a certain time of day (backed by Redis).",
   "main": "main.js",
   "devDependencies": {

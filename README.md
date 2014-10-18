@@ -25,12 +25,19 @@ var throttler = ScheduledThrottle.create({
     ]
 }));
 
+var b = 10;
+
 var obj = {
     a: 2,
     throttledFn: throttler.throttle(function (x) {
+        // a function can be throttled
         console.log('executed');
         return x + this.a;
-    });
+    }),
+    throttlePromise: throttler.throttle(new Promise(function (resolve, reject) {
+        // ..or a Promise can be throttled
+        resolve(b);
+    }))
 };
 
 throttler.clear(function (err, result) { // "clear" method
@@ -42,11 +49,15 @@ throttler.clear(function (err, result) { // "clear" method
         // prints 'executed'
         assert.strictEqual(result, 1 + 2);
     
-        obj.throttledFn(1, function (err, result) {
+        obj.throttledPromise(function (err, result) {
             if (err) throw err;
 
-            // will not execute until either 04:00 or 14:30 (local time)
-            assert.strictEqual(result, ScheduledThrottle.THROTTLED); // status code THROTTLED
+            assert.strictEqual(result, b);
+
+            obj.throttledFn(1, function (err, result) {
+                // will not execute until either 04:00 or 14:30 (local time)
+                assert.strictEqual(result, ScheduledThrottle.THROTTLED); // status code THROTTLED
+            });
         });
     }); 
 });

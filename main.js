@@ -33,7 +33,7 @@ function create(options) {
             });
     }
 
-    function throttle(fn, currentDate) {
+    function throttle(promiseOrFn, currentDate) {
         return function throttledFunction() {
             var that = this;
 
@@ -44,7 +44,15 @@ function create(options) {
             var cb = arguments[arguments.length - 1];
 
             function apply() {
-                cb(null, fn.apply(that, args));
+                if (typeof promiseOrFn === 'function') {
+                    cb(null, promiseOrFn.apply(that, args));
+                } else if (promiseOrFn.then) {
+                    promiseOrFn.then(function (result) {
+                        cb(null, result);
+                    });
+                } else {
+                    throw new Error('The first parameter to .throttle() should be either a promise or a function.');
+                }
             }
 
             client.multi()

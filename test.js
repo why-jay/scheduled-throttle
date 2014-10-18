@@ -85,9 +85,7 @@ Bluebird.coroutine(function* () {
     for (let hourHitCount = 0, callCount = 0; true; currentDate.setHours(currentDate.getHours() + 1), ++hourHitCount) {
         process.stdout.write('.');
 
-        let simulatedThrottledFn = throttler.throttle(function (y) {
-            return y + this.b;
-        }.bind({b}), currentDate);
+        let simulatedThrottledFn = throttler.throttle(Bluebird.method(() => y + b)(), currentDate);
 
         let result = yield Bluebird.promisify(simulatedThrottledFn)(y);
 
