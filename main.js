@@ -1,6 +1,6 @@
 'use strict';
 
-var THROTTLED = ((Math.random() * 99999999999) >> 0) | 0;
+var THROTTLED = (Math.random() * 99999999999) >> 0;
 
 function convertTimezoneToLocalAdjust(timezone) {
     return (timezone.charAt(0) === '+' ? 1 : -1) *
@@ -18,12 +18,14 @@ function create(options) {
     var localAdjustKey = key + ':localAdjust'; // in minutes
     var localChangeTimesKey = key + ':localChangeTimes'; // in minute of day - sorted in increasing order
     var localLastCallTimeKey = key + ':localLastCallTime'; // in UTC minutes
+    var lastCallResultKey = key + ':lastCallResult';
 
     function clear(cb) {
         client.multi()
             .del(localAdjustKey)
             .del(localChangeTimesKey)
             .del(localLastCallTimeKey)
+            .del(lastCallResultKey)
             .exec(function onResponse(err) {
                 if (err) {
                     cb(err);
@@ -33,7 +35,12 @@ function create(options) {
             });
     }
 
-    function throttle(promiseOrFn, currentDate) {
+    function throttle(fn, currentDate) {
+        if (typeof fn !== 'function') {
+            throw new Error('The first parameter to .throttle() should be either a function' +
+                ' whose last parameter is a node-style callback.');
+        }
+
         return function throttledFunction() {
             var that = this;
 
@@ -43,16 +50,20 @@ function create(options) {
             }
             var cb = arguments[arguments.length - 1];
 
-            function apply() {
-                if (typeof promiseOrFn === 'function') {
-                    cb(null, promiseOrFn.apply(that, args));
-                } else if (promiseOrFn.then) {
-                    promiseOrFn.then(function (result) {
-                        cb(null, result);
-                    });
-                } else {
-                    throw new Error('The first parameter to .throttle() should be either a promise or a function.');
-                }
+            function fnApply() {
+                args.push(!options.preserveResult ? cb :
+                    function fnCallback(err, res) {
+                        client.set(lastCallResultKey, res, function onSetLastCallResultKey(err) {
+                            if (err) {
+                                cb(err);
+                                return;
+                            }
+
+                            cb(null, res);
+                        })
+                    }
+                );
+                fn.apply(that, args);
             }
 
             client.multi()
@@ -70,7 +81,7 @@ function create(options) {
                     var localCurrentMin = ((currentDate.valueOf() + localAdjust * 1000 * 60) / (1000 * 60)) >> 0;
 
                     if (!responses[0] || !responses[1] || !responses[2]) {
-                        apply();
+                        fnApply();
 
                         var localChangeTimesDef = options.localChangeTimes;
                         var changeTimes = new Array(localChangeTimesDef.length);
@@ -81,15 +92,30 @@ function create(options) {
                         changeTimes.sort(function (a, b) { return a - b; });
 
                         var multi = client.multi();
-                        changeTimes.unshift(localChangeTimesKey);
-                        multi.rpush.apply(multi, changeTimes) // .rpush(localChangeTimesKey, changeTimes)
-                            .set(localAdjustKey, localAdjust)
-                            .set(localLastCallTimeKey, localCurrentMin)
-                            .exec(function (err) {
-                                if (err) {
-                                    cb(err);
-                                }
-                            });
+
+                        var expire = options.inactivityExpire;
+                        if (expire) {
+                            changeTimes.unshift(localChangeTimesKey);
+                            multi.rpush.apply(multi, changeTimes) // .rpush(localChangeTimesKey, changeTimes)
+                                .expire(localChangeTimesKey, expire)
+                                .setex(localAdjustKey, expire, localAdjust)
+                                .setex(localLastCallTimeKey, expire, localCurrentMin)
+                                .exec(function (err) {
+                                    if (err) {
+                                        cb(err);
+                                    }
+                                });
+                        } else {
+                            changeTimes.unshift(localChangeTimesKey);
+                            multi.rpush.apply(multi, changeTimes) // .rpush(localChangeTimesKey, changeTimes)
+                                .set(localAdjustKey, localAdjust)
+                                .set(localLastCallTimeKey, localCurrentMin)
+                                .exec(function (err) {
+                                    if (err) {
+                                        cb(err);
+                                    }
+                                });
+                        }
                         return;
                     }
 
@@ -98,15 +124,6 @@ function create(options) {
                     var localChangeTimes = new Array(localChangeTimesStrings.length);
                     for (var c = 0; c < localChangeTimes.length; ++c) {
                         localChangeTimes[c] = localChangeTimesStrings[c] >> 0;
-                    }
-
-                    function execute() {
-                        apply();
-                        client.set(localLastCallTimeKey, localCurrentMin, function (err) {
-                            if (err) {
-                                cb(err);
-                            }
-                        });
                     }
 
                     var localCurrentMinOfDay = localCurrentMin % (60 * 24);
@@ -130,11 +147,46 @@ function create(options) {
                         }
                     }
 
-                    if (largestTimeSmallerThanCurrent !== largestTimeSmallerThanLastCall) {
-                        execute();
-                    } else {
-                        cb(null, THROTTLED);
+                    var shouldExecute = largestTimeSmallerThanCurrent !== largestTimeSmallerThanLastCall;
+
+                    expire = options.inactivityExpire;
+                    multi = client.multi();
+                    if (expire) {
+                        multi.expire(localLastCallTimeKey, expire)
+                            .expire(localAdjustKey, expire)
+                            .expire(localChangeTimesKey, expire);
                     }
+                    if (shouldExecute) {
+                        multi = multi.set(localLastCallTimeKey, localCurrentMin);
+                    }
+                    multi.exec(function (err) {
+                        if (err) {
+                            cb(err);
+                            return;
+                        }
+
+                        if (shouldExecute) {
+                            fnApply();
+                        } else {
+                            if (!options.preserveResult) {
+                                cb(null, THROTTLED);
+                            } else {
+                                client.get(lastCallResultKey, function (err, res) {
+                                    if (err) {
+                                        cb(err);
+                                        return;
+                                    }
+
+                                    var lastResultHandler = options.lastResultHandler;
+                                    if (!lastResultHandler) {
+                                        cb(null, res);
+                                    } else {
+                                        lastResultHandler(res, cb);
+                                    }
+                                })
+                            }
+                        }
+                    });
                 });
         };
     }

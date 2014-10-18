@@ -1,13 +1,13 @@
 'use strict';
 
 const TEST_KEY_NAME = 'schthrot_test:10';
+const EXPIRE = 1; // seconds
 
 const ScheduledThrottle = require('./main');
 
-const _ = require('lodash');
 const Bluebird = require('bluebird');
 const assert = require('assert');
-const redisClient = require('redis').createClient();
+const redisClient = require('redis').createClient({auth_pass: 'yamm1234'});
 
 const pad = function (n, width, z) {
     // http://stackoverflow.com/questions/10073699
@@ -37,14 +37,15 @@ const throttler = Bluebird.promisifyAll(ScheduledThrottle.create({
         '2200',
         pad(startHour, 2) + pad(startMin + 1, 2),
         pad(startHour, 2) + pad(startMin + 2, 2)
-    ]
+    ],
+    inactivityExpire: EXPIRE // seconds
 }));
 
 const obj = {
     a: 10,
     throttledFnAsync: Bluebird.promisify(
-        throttler.throttle(function (x) {
-            return x + this.a;
+        throttler.throttle(function (x, cb) {
+            cb(null, x + this.a);
         })
     )
 };
@@ -56,15 +57,17 @@ const b = 10;
 Bluebird.coroutine(function* () {
     yield throttler.clearAsync();
 
-    process.stdout.write('.');
+    process.stdout.write('...');
     assert.strictEqual(yield obj.throttledFnAsync(x), x + obj.a);
+    yield Bluebird.delay(EXPIRE * 1000 + 500); // milliseconds, add 500ms just in case
+    assert.notStrictEqual(yield obj.throttledFnAsync(x), ScheduledThrottle.THROTTLED, 'Keys did not expire');
 
     let currentDate = new Date(startDate);
     for (let minuteHitCount = 0; true; currentDate.setSeconds(currentDate.getSeconds() + 1)) {
         process.stdout.write('.');
 
-        let simulatedThrottledFn = throttler.throttle(function (y) {
-            return y + this.b;
+        let simulatedThrottledFn = throttler.throttle(function (y, cb) {
+            cb(null, y + this.b);
         }.bind({b}), currentDate);
 
         let result = yield Bluebird.promisify(simulatedThrottledFn)(y);
@@ -85,7 +88,9 @@ Bluebird.coroutine(function* () {
     for (let hourHitCount = 0, callCount = 0; true; currentDate.setHours(currentDate.getHours() + 1), ++hourHitCount) {
         process.stdout.write('.');
 
-        let simulatedThrottledFn = throttler.throttle(Bluebird.method(() => y + b)(), currentDate);
+        let simulatedThrottledFn = throttler.throttle(function (y, cb) {
+            cb(null, y + b);
+        }, currentDate);
 
         let result = yield Bluebird.promisify(simulatedThrottledFn)(y);
 
@@ -100,6 +105,27 @@ Bluebird.coroutine(function* () {
             }
         }
     }
+
+    const throttlerWithPreserveResult = Bluebird.promisifyAll(ScheduledThrottle.create({
+        client: redisClient,
+        key: TEST_KEY_NAME,
+        timezone: timezoneStr,
+        localChangeTimes: ['0400'],
+        preserveResult: true,
+        lastResultHandler: function (res, cb) {
+            cb(null, parseInt(res, 10));
+        }
+    }));
+
+    yield throttlerWithPreserveResult.clearAsync();
+
+    const c = 11;
+    const throttledFnWithPreserveResult = throttlerWithPreserveResult.throttle(cb => { cb(null, c); });
+    const resultWithPreserveResult1 = yield Bluebird.promisify(throttledFnWithPreserveResult)();
+    assert.strictEqual(resultWithPreserveResult1, c);
+    const resultWithPreserveResult2 = yield Bluebird.promisify(throttledFnWithPreserveResult)();
+    assert.strictEqual(resultWithPreserveResult2, c);
+    assert.notStrictEqual(resultWithPreserveResult2, ScheduledThrottle.THROTTLED);
 
     console.log('Success');
     redisClient.end();
