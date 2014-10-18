@@ -71,7 +71,12 @@ function create(options) {
                             }
 
                             cb(null, res);
-                        })
+                        });
+
+                        var expire = options.inactivityExpire;
+                        if (expire) {
+                            client.expire(lastCallResultKey, expire);
+                        }
                     }
                 );
                 fn.apply(that, args);
