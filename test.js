@@ -111,20 +111,20 @@ Bluebird.coroutine(function* () {
         key: TEST_KEY_NAME,
         timezone: timezoneStr,
         localChangeTimes: ['0400'],
-        preserveResult: true,
-        lastResultHandler: function (res, cb) {
-            cb(null, parseInt(res, 10));
-        }
+        preserveResult: true
     }));
 
     yield throttlerWithPreserveResult.clearAsync();
 
-    const c = 11;
+    const c = {
+        u: 1,
+        v: '1'
+    };
     const throttledFnWithPreserveResult = throttlerWithPreserveResult.throttle(cb => { cb(null, c); });
     const resultWithPreserveResult1 = yield Bluebird.promisify(throttledFnWithPreserveResult)();
-    assert.strictEqual(resultWithPreserveResult1, c);
+    assert.deepEqual(resultWithPreserveResult1, c);
     const resultWithPreserveResult2 = yield Bluebird.promisify(throttledFnWithPreserveResult)();
-    assert.strictEqual(resultWithPreserveResult2, c);
+    assert.deepEqual(resultWithPreserveResult2, c);
     assert.notStrictEqual(resultWithPreserveResult2, ScheduledThrottle.THROTTLED);
 
     console.log('Success');

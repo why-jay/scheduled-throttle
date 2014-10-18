@@ -61,12 +61,16 @@ var throttlerWithPreserveResult = Bluebird.promisifyAll(ScheduledThrottle.create
     key: TEST_KEY_NAME + '2',
     timezone: '+0900',
     localChangeTimes: ['0400'],
-    preserveResult: true, // notice these last two options
-    lastResultHandler: function (res, cb) {
-        cb(null, parseInt(res, 10)); // integers are stored as strings in Redis, so conversion back to int is necessary
+    preserveResult: true, // notice
+    serialize: function (result) { // if not set, a default serializer is used
+        return JSON.stringify(result);
+    },
+    deserialize: function (str) {  // if not set, a default deserializer is used
+        return JSON.parse(str);
     }
 }));
 
+var c = {u: 1, v: '1'};
 var throttledFnWithPreserveResult = throttlerWithPreserveResult.throttle(function (cb) { cb(null, c); });
 throttledFnWithPreserveResult(function (err, result) {
     if (err) throw err;
@@ -74,7 +78,7 @@ throttledFnWithPreserveResult(function (err, result) {
     assert.strictEqual(result, c);
     
     throttledFnWithPreserveResult(function (err, result) {
-        assert.strictEqual(result, c); // previous result has been kept along and is returned
+        assert.deepEqual(result, c); // previous result has been kept along and is returned
         assert.notStrictEqual(result, ScheduledThrottle.THROTTLED); // instead of THROTTLED being returned
     });
 });

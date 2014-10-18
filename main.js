@@ -11,9 +11,20 @@ function convertTimeToMinOfDay(time) {
     return (time.substr(0, 2) >> 0) * 60 + (time.substr(2, 2) >> 0)
 }
 
+function defaultSerialize(result) {
+    return JSON.stringify(result);
+}
+
+function defaultDeserialize(str) {
+    return JSON.parse(str);
+}
+
 function create(options) {
     var client = options.client;
     var key = options.key;
+
+    var serialize = options.serialize || defaultSerialize;
+    var deserialize = options.deserialize || defaultDeserialize;
 
     var localAdjustKey = key + ':localAdjust'; // in minutes
     var localChangeTimesKey = key + ':localChangeTimes'; // in minute of day - sorted in increasing order
@@ -53,7 +64,7 @@ function create(options) {
             function fnApply() {
                 args.push(!options.preserveResult ? cb :
                     function fnCallback(err, res) {
-                        client.set(lastCallResultKey, res, function onSetLastCallResultKey(err) {
+                        client.set(lastCallResultKey, serialize(res), function onSetLastCallResultKey(err) {
                             if (err) {
                                 cb(err);
                                 return;
@@ -168,7 +179,8 @@ function create(options) {
                         if (shouldExecute) {
                             fnApply();
                         } else {
-                            if (!options.preserveResult) {
+                            var preserveResult = options.preserveResult;
+                            if (!preserveResult) {
                                 cb(null, THROTTLED);
                             } else {
                                 client.get(lastCallResultKey, function (err, res) {
@@ -177,12 +189,7 @@ function create(options) {
                                         return;
                                     }
 
-                                    var lastResultHandler = options.lastResultHandler;
-                                    if (!lastResultHandler) {
-                                        cb(null, res);
-                                    } else {
-                                        lastResultHandler(res, cb);
-                                    }
+                                    cb(null, preserveResult ? deserialize(res) : res);
                                 })
                             }
                         }
