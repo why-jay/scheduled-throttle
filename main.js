@@ -12,10 +12,16 @@ function convertTimeToMinOfDay(time) {
 }
 
 function defaultSerialize(result) {
+    if (result === undefined) {
+        return '__schthrot_undefined__';
+    }
     return JSON.stringify(result);
 }
 
 function defaultDeserialize(str) {
+    if (str === '__schthrot_undefined__') {
+        return undefined;
+    }
     return JSON.parse(str);
 }
 
