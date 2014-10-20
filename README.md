@@ -15,9 +15,9 @@ npm install scheduled-throttle
 ```JavaScript
 var REDIS_KEYS_EXPIRE = 1000000;
 
-var ScheduledThrottle = require('scheduled-throttle');
+var scheduledThrottle = require('scheduled-throttle');
 
-var throttler = ScheduledThrottle.create({
+var throttler = scheduledThrottle.create({
     client: redisClient, // required
     key: 'foo:1', // required - Redis key name
     timezone: '+0900', // required
@@ -47,16 +47,22 @@ throttler.clear(function (err, result) { // "clear" method clears out all releva
         
         assert.strictEqual(result, 1 + 2);
     
-        obj.throttledFn(1, function (err, result) {
+        throttler.willExecute(function (err, result) {
+            if (err) throw err;
+            
             // will not execute until either 04:00 or 14:30 (local time)
             // also, after REDIS_KEYS_EXPIRE seconds,
-            // relevant Redis keys will be cleared out as if throttler.clear() is called
-            assert.strictEqual(result, ScheduledThrottle.THROTTLED); // status code THROTTLED
+            // relevant Redis keys will be cleared out, as if throttler.clear() is called
+            assert.strictEqual(result, false);
+            
+            obj.throttledFn(1, function (err, result) {
+                assert.strictEqual(result, scheduledThrottle.THROTTLED); // status code THROTTLED
+            });
         });
     }); 
 });
 
-var throttlerWithPreserveResult = Bluebird.promisifyAll(ScheduledThrottle.create({
+var throttlerWithPreserveResult = Bluebird.promisifyAll(scheduledThrottle.create({
     client: redisClient,
     key: TEST_KEY_NAME + '2',
     timezone: '+0900',
@@ -79,7 +85,7 @@ throttledFnWithPreserveResult(function (err, result) {
     
     throttledFnWithPreserveResult(function (err, result) {
         assert.deepEqual(result, c); // previous result has been kept along and is returned
-        assert.notStrictEqual(result, ScheduledThrottle.THROTTLED); // instead of THROTTLED being returned
+        assert.notStrictEqual(result, scheduledThrottle.THROTTLED); // instead of THROTTLED being returned
     });
 });
 ```
@@ -90,7 +96,7 @@ For testing purposes, you may want to pretend it's a certain time of day right n
 object as the second argument of the `.throttle` method:
 
 ```JavaScript
-var throttler = ScheduledThrottle.create({
+var throttler = scheduledThrottle.create({
     (other options...),
     timezone: '+0900',
     localChangeTimes: ['0400']

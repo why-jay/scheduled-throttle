@@ -7,7 +7,7 @@ const ScheduledThrottle = require('./main');
 
 const Bluebird = require('bluebird');
 const assert = require('assert');
-const redisClient = require('redis').createClient({auth_pass: 'yamm1234'});
+const redisClient = require('redis').createClient();
 
 const pad = function (n, width, z) {
     // http://stackoverflow.com/questions/10073699
@@ -56,6 +56,7 @@ const b = 10;
 
 Bluebird.coroutine(function* () {
     yield throttler.clearAsync();
+    assert.strictEqual(yield throttler.willExecuteAsync(), true);
 
     process.stdout.write('...');
     assert.strictEqual(yield obj.throttledFnAsync(x), x + obj.a);
@@ -73,8 +74,10 @@ Bluebird.coroutine(function* () {
         let result = yield Bluebird.promisify(simulatedThrottledFn)(y);
 
         if (result === ScheduledThrottle.THROTTLED) {
+            assert.strictEqual(yield throttler.willExecuteAsync(), false);
             assert.strictEqual((startDate.getMinutes() + minuteHitCount) % 60, currentDate.getMinutes());
         } else {
+            assert.strictEqual(yield throttler.willExecuteAsync(), false);
             minuteHitCount += 1;
             assert.strictEqual((startDate.getMinutes() + minuteHitCount) % 60, currentDate.getMinutes());
             assert.strictEqual(result, y + b);
