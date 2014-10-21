@@ -2,8 +2,6 @@
 
 A throttled function will only execute once until it passes a certain time of day (backed by Redis).
 
-The only overhead on the function after throttling is a single I/O call to and from Redis.
-
 ##Install
 
 ```
@@ -25,13 +23,12 @@ var throttler = scheduledThrottle.create({
         '0400',
         '1430'
     ],
-    inactivityExpire: REDIS_KEYS_EXPIRE // optional - in seconds - if not set, never expires
+    inactivityExpire: REDIS_KEYS_EXPIRE // optional - in seconds - if not set, the relevant Redis keys never expire
 }));
 
 var obj = {
     a: 2,
     throttledFn: throttler.throttle(function (x, cb) { // callback should be a nodeback
-        // a function can be throttled
         console.log('executed');
         cb(null, x + this.a);
     })
@@ -67,11 +64,14 @@ var throttlerWithPreserveResult = Bluebird.promisifyAll(scheduledThrottle.create
     key: TEST_KEY_NAME + '2',
     timezone: '+0900',
     localChangeTimes: ['0400'],
-    preserveResult: true, // notice
-    serialize: function (result) { // if not set, a default serializer is used
+    preserveResult: true, // NOTICE THIS OPITON! - returns previous call result instead of THROTTLED
+    serialize: function (result) { // optional
+        // If not set, a default serializer is used (which is basically a JSON.stringify() that can handle undefined)
+        // Redis can only store strings, so everything needs to be converted to and from a string.
         return JSON.stringify(result);
     },
-    deserialize: function (str) {  // if not set, a default deserializer is used
+    deserialize: function (str) { // optional - similar to the "serialize" option above
+        // If not set, a default deserializer is used (which is basically a JSON.parse() that can handle undefined)
         return JSON.parse(str);
     }
 }));
