@@ -70,9 +70,9 @@ Bluebird.coroutine(function* () {
 })();
 ```
 
-```JavaScript
-/*** Showcasing the "preserveResult" option ***/
+Now check out the "preserveResult" option:
 
+```JavaScript
 var throttler = Bluebird.promisifyAll(scheduledThrottle.create({
     client: redisClient,
     key: TEST_KEY_NAME,
