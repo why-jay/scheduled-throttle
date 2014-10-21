@@ -10,10 +10,14 @@ npm install scheduled-throttle
 
 ##Example
 
+Check out the following example written in ES6. Hopefully you're familiar with coroutines/generators/Bluebird! :)
+
 ```JavaScript
 var REDIS_KEYS_EXPIRE = 1000000;
 
 var scheduledThrottle = require('scheduled-throttle');
+var assert = require('assert');
+var Bluebird = require('bluebird');
 
 var throttler = scheduledThrottle.create({
     client: redisClient, // required
@@ -23,8 +27,21 @@ var throttler = scheduledThrottle.create({
         '0400',
         '1430'
     ],
-    inactivityExpire: REDIS_KEYS_EXPIRE // optional - in seconds - if not set, the relevant Redis keys never expire
+    inactivityExpire: REDIS_KEYS_EXPIRE, // optional - in seconds
+                                 // if not set, the relevant Redis keys never expire
+    serialize: function (numberResult) { // optional
+        // If not set, a default serializer is used (which is basically a JSON.stringify()
+        // that can handle undefined). Redis can only store strings, so everything needs
+        // to be converted to and from a string.
+        return String(numberResult);
+    },
+    deserialize: function (stringStored) { // optional - similar to the serialize
+        // If not set, a default deserializer is used (which is basically a JSON.parse()
+        // that can handle undefined)
+        return JSON.parse(stringStored);
+    }
 }));
+throttler = Bluebird.promisifyAll(throttler);
 
 var obj = {
     a: 2,
@@ -33,67 +50,55 @@ var obj = {
         cb(null, x + this.a);
     })
 };
+obj = Bluebird.promisifyAll(obj);
 
-throttler.clear(function (err, result) { // "clear" method clears out all relevant Redis keys
-    if (err) throw err;
-     
-    obj.throttledFn(1, function (err, result) {
-        if (err) throw err;
-        
-        // prints 'executed'
-        
-        assert.strictEqual(result, 1 + 2);
+Bluebird.coroutine(function* () {
+    yield throttler.clearAsync(); // "clear" method - clears out all relevant Redis keys
     
-        throttler.willExecute(function (err, result) {
-            if (err) throw err;
-            
-            // will not execute until either 04:00 or 14:30 (local time)
-            // also, after REDIS_KEYS_EXPIRE seconds,
-            // relevant Redis keys will be cleared out, as if throttler.clear() is called
-            assert.strictEqual(result, false);
-            
-            obj.throttledFn(1, function (err, result) {
-                assert.strictEqual(result, scheduledThrottle.THROTTLED); // status code THROTTLED
-            });
-        });
-    }); 
-});
+    var result = yield obj.throttledFnAsync(1);
+    // 'executed' is printed because of console.log() above
+    assert.strictEqual(result, 1 + 2);
+    
+    var will = yield throttler.willExecuteAsync();
+    // will not execute until either 04:00 or 14:30 (local time)
+    assert.strictEqual(result, false);
+    // also, after REDIS_KEYS_EXPIRE seconds,
+    // relevant Redis keys will be cleared out, as if throttler.clear() is called
 
-var throttlerWithPreserveResult = Bluebird.promisifyAll(scheduledThrottle.create({
+    var result2 = yield obj.throttledFnAsync(1);
+    assert.strictEqual(result2, scheduledThrottle.THROTTLED);     
+})();
+```
+
+```JavaScript
+/*** Showcasing the "preserveResult" option ***/
+
+var throttler = Bluebird.promisifyAll(scheduledThrottle.create({
     client: redisClient,
-    key: TEST_KEY_NAME + '2',
+    key: TEST_KEY_NAME,
     timezone: '+0900',
     localChangeTimes: ['0400'],
-    preserveResult: true, // NOTICE THIS OPITON! - returns previous call result instead of THROTTLED
-    serialize: function (result) { // optional
-        // If not set, a default serializer is used (which is basically a JSON.stringify() that can handle undefined)
-        // Redis can only store strings, so everything needs to be converted to and from a string.
-        return JSON.stringify(result);
-    },
-    deserialize: function (str) { // optional - similar to the "serialize" option above
-        // If not set, a default deserializer is used (which is basically a JSON.parse() that can handle undefined)
-        return JSON.parse(str);
-    }
+    preserveResult: true /*** NOTICE THIS OPTION! ***/
 }));
 
 var c = {u: 1, v: '1'};
-var throttledFnWithPreserveResult = throttlerWithPreserveResult.throttle(function (cb) { cb(null, c); });
-throttledFnWithPreserveResult(function (err, result) {
-    if (err) throw err;
-    
+var throttledFn = throttler.throttle(function (cb) { cb(null, c); });
+var throttledFnAsync = Bluebird.promisify(throttledFn);
+
+Bluebird.coroutine(function* () {
+    var result = yield throttledFnAsync();
     assert.strictEqual(result, c);
     
-    throttledFnWithPreserveResult(function (err, result) {
-        assert.deepEqual(result, c); // previous result has been kept along and is returned
-        assert.notStrictEqual(result, scheduledThrottle.THROTTLED); // instead of THROTTLED being returned
-    });
-});
+    var result2 = yield throttledFnAsync();
+    assert.deepEqual(result2, c); // previous result has been kept along and is returned
+    assert.notStrictEqual(result2, scheduledThrottle.THROTTLED); // instead of THROTTLED
+})();
 ```
 
 ##Pretending a Time of Day
 
 For testing purposes, you may want to pretend it's a certain time of day right now. In such cases, simply pass a `Date`
-object as the second argument of the `.throttle` method:
+object as the second argument of the `.throttle()` method:
 
 ```JavaScript
 var throttler = scheduledThrottle.create({
