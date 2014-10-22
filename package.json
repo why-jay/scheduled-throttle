@@ -1,10 +1,14 @@
 {
   "name": "scheduled-throttle",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Function will only execute once until it passes a certain time of day (backed by Redis).",
-  "main": "main.js",
+  "main": "es5.js",
+  "dependencies": {
+    "6to5": "^1.9.10",
+    "bluebird": "^2.3.6",
+    "source-map-support": "^0.2.8"
+  },
   "devDependencies": {
-    "bluebird": "2.3.5",
     "redis": "^0.12.1"
   },
   "scripts": {

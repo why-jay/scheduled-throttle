@@ -1,7 +1,6 @@
 #!/bin/bash
 
-regenerator --include-runtime test.js > test.js.out
-6to5 test.js.out > test-out.js
-rm test.js.out
-node test-out.js
-rm test-out.js
+./prepareES5.sh
+6to5 --source-maps-inline test.js > test-es5.js
+node test-es5.js
+rm test-es5.js

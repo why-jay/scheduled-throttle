@@ -95,10 +95,29 @@ Bluebird.coroutine(function* () {
 })();
 ```
 
+##Error within the function being throttled
+
+When there is an error (not necessarily an `Error` object) is thrown inside the function being throttled,
+the throttler will stop the process immediately and no changes will occur with Redis.
+
+```JavaScript
+const throttledFnAsync = Bluebird.promisify(throttler2.throttle(cb => cb(new Error('intentional'))));
+try {
+    yield throttledFnAsync();
+} catch (err) {
+    assert.strictEqual(err.message, 'intentional');
+    try {
+        yield throttledFnAsync(); // should throw again
+    } catch (err) {
+        assert.strictEqual(err.message, 'intentional');
+    }
+}
+```
+
 ##Pretending a Time of Day
 
 For testing purposes, you may want to pretend it's a certain time of day right now. In such cases, simply pass a `Date`
-object as the second argument of the `.throttle()` method:
+object as the first argument of `.throttle()` or `.willExecute()`:
 
 ```JavaScript
 var throttler = scheduledThrottle.create({
@@ -107,14 +126,14 @@ var throttler = scheduledThrottle.create({
     localChangeTimes: ['0400']
 }));
 
-var simulatedThrottledFn = throttler.throttle(function () {
+var simulatedThrottledFn = throttler.throttle(new Date('2013-03-01T04:01:00+0900'), function (cb) {
     // will simulate as if it is 04:01 right now
-}, new Date('2013-03-01T04:01:00+0900'));
+});
 ```
 
 ##Test
 
-Test is written in ES6, so Regenerator, 6to5 and Bash are being used for transpilation.
+Test is written in ES6, so 6to5 is used for transpilation.
 
 ```
 npm install
