@@ -55,12 +55,18 @@ function create(options) {
     var lastCallResultKey = key + ':lastCallResult';
 
     var checkStatusAsync = Bluebird.coroutine(function* (currentDate = new Date()) {
-        var [localAdjustString, localChangeTimesStrings, localLastCallTimeString] = yield Bluebird.promisifyAll(
+        var result = yield Bluebird.promisifyAll(
             client.multi()
                 .get(localAdjustKey)
                 .lrange(localChangeTimesKey, 0, -1)
                 .get(localLastCallTimeKey)
         ).execAsync();
+
+        if (!result) {
+            return {status: NEED_INIT, localAdjust: convertTimezoneToLocalAdjust(options.timezone)};
+        }
+
+        var [localAdjustString, localChangeTimesStrings, localLastCallTimeString] = result;
 
         if (!localAdjustString || !localChangeTimesStrings || !localLastCallTimeString) {
             return {status: NEED_INIT, localAdjust: convertTimezoneToLocalAdjust(options.timezone)};
